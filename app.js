@@ -2,7 +2,8 @@ import 'dotenv/config';
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import encrypt from "mongoose-encryption";
+import md5 from "md5";
+// import encrypt from "mongoose-encryption";
 import path from "node:path";
 
 const app = express();
@@ -32,7 +33,7 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
+// userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
 
 const User = new mongoose.model("User", userSchema);
 
@@ -51,7 +52,7 @@ app.get("/register", asyncMiddleware(async (req, res, next) => {
 app.post("/register", asyncMiddleware(async (req, res, next) => {
     const newUser = new User({
         email: req.body.username,
-        password: req.body.password
+        password: md5(req.body.password)
     });
 
     await newUser.save();
@@ -61,7 +62,7 @@ app.post("/register", asyncMiddleware(async (req, res, next) => {
 app.post("/login", asyncMiddleware(async (req, res, next) => {
     const foundUser = await User.findOne({email: req.body.username});
     if (foundUser) {
-        if (foundUser.password === req.body.password) {
+        if (foundUser.password === md5(req.body.password)) {
             res.render("secrets");
         } else {
             res.send("Wrong password");
