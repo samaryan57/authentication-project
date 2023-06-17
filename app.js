@@ -2,12 +2,14 @@ import 'dotenv/config';
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import md5 from "md5";
+// import md5 from "md5";
 // import encrypt from "mongoose-encryption";
+import bcrypt from "bcrypt";
 import path from "node:path";
 
 const app = express();
 const __dirname = path.resolve();
+const saltRounds = 10;
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static("public"));
@@ -50,9 +52,18 @@ app.get("/register", asyncMiddleware(async (req, res, next) => {
 }));
 
 app.post("/register", asyncMiddleware(async (req, res, next) => {
+    let hashedPassword = "";
+    await bcrypt.hash(req.body.password, saltRounds)
+        .then((hash) => {
+            hashedPassword = hash;
+        })
+        .catch((err) => {
+            console.log(err);
+        });
+
     const newUser = new User({
         email: req.body.username,
-        password: md5(req.body.password)
+        password: hashedPassword
     });
 
     await newUser.save();
@@ -62,15 +73,21 @@ app.post("/register", asyncMiddleware(async (req, res, next) => {
 app.post("/login", asyncMiddleware(async (req, res, next) => {
     const foundUser = await User.findOne({email: req.body.username});
     if (foundUser) {
-        if (foundUser.password === md5(req.body.password)) {
-            res.render("secrets");
-        } else {
-            res.send("Wrong password");
-        }
+        await bcrypt.compare(req.body.password, foundUser.password, (err, result) => {
+            if (!err) {
+                if (result === true) {
+                    res.render("secrets");
+                } else {
+                    res.send("Wrong Password");
+                }
+            } else {
+                console.log(err);
+            }
+        });
     } else {
         res.send("User does not exist.");
     }
-}))
+}));
 
 app.listen(process.env.PORT || 3000, () => {
     console.log("Server is running on port 3000");
