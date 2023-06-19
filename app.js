@@ -44,12 +44,14 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 mongoose.connect("mongodb://localhost:27017/userDB");
+const ObjectId = mongoose.Types.ObjectId;
 
 const userSchema = new mongoose.Schema({
     username: String,
     password: String,
     googleId: String,
-    facebookId: String
+    facebookId: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -134,9 +136,18 @@ app.get("/register", asyncMiddleware(async (req, res, next) => {
 
 app.get("/secrets", asyncMiddleware(async (req, res, next) => {
     if (req.isAuthenticated()) {
-        res.render("secrets");
+        const foundUsers = await User.find({secret: {$ne: null}});
+        res.render("secrets" , {usersWithSecrets: foundUsers});
     } else {
-        res.redirect("login");
+        res.redirect("/login");
+    }
+}));
+
+app.get("/submit", asyncMiddleware(async (req, res, next) => {
+    if (req.isAuthenticated()) {
+        res.render("submit");
+    } else {
+        res.redirect("/login");
     }
 }));
 
@@ -170,11 +181,24 @@ app.post("/login", asyncMiddleware(async (req, res, next) => {
         if (err) {
             next(err);
         } else {
-            passport.authenticate("local")(req, res, () => {
+            passport.authenticate("local", {failureRedirect: "/login"})(req, res, () => {
                 res.redirect("/secrets");
             });
         }
     });
+}));
+
+app.post("/submit", asyncMiddleware(async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const submittedSecret = req.body.secret;
+
+    const foundUser = await User.populate(req.user, { path: '_id' });
+    // console.log(req.user);
+    foundUser.secret = submittedSecret;
+    await foundUser.save();
+    res.redirect("/secrets");
 }));
 
 app.listen(process.env.PORT || 3000, () => {
